@@ -211,6 +211,26 @@ z-index:200;opacity:0;pointer-events:none;transition:all .25s;white-space:nowrap
 }
 .toast.on{opacity:1;transform:translate(-50%,-50%) scale(1)}
 .hide{display:none!important}
+
+/* 设置项 + 开关 */
+.setrow{
+display:flex;align-items:center;gap:12px;background:#f7f8fa;border-radius:12px;
+padding:13px 14px;cursor:pointer;transition:background .15s;
+}
+.setrow:active{background:#eef0f3}
+.setrow>div:first-child{flex:1;min-width:0}
+.setrow b{display:block;font-size:14.5px;font-weight:600;color:var(--tx);margin-bottom:2px}
+.setrow span{font-size:12px;color:var(--tx3);line-height:1.4;display:block}
+.sw{
+width:46px;height:27px;border-radius:99px;background:#d5d8dd;position:relative;
+flex-shrink:0;transition:background .22s;
+}
+.sw i{
+position:absolute;top:2.5px;left:2.5px;width:22px;height:22px;border-radius:50%;
+background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.2);transition:transform .22s;
+}
+.sw.on{background:var(--red)}
+.sw.on i{transform:translateX(19px)}
 </style>
 </head>
 <body>
@@ -341,6 +361,7 @@ const App = (() => {
     fav: {},         // id -> ts
     pos: 0,          // 顺序模式进度
     randSeed: -1,    // 随机模式当前题序
+    shuf: false,     // 选项乱序开关
     exam: null,      // 未完成的考试
     examHist: []     // 历次成绩
   });
@@ -430,16 +451,28 @@ const App = (() => {
   }
 
   /* ---------- 刷题会话 ---------- */
+  const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
+
   const Quiz = {
-    list: [], idx: 0, mode: 'order', answered: {}, tab: 'order',
+    list: [], idx: 0, mode: 'order', answered: {}, tab: 'order', disp: null,
     init(ids, mode, startIdx) {
       this.list = ids;
       this.mode = mode;
       this.idx = startIdx || 0;
       this.tab = mode === 'wrong' ? 'wrong' : mode === 'fav' ? 'fav' : (mode === 'random' ? 'random' : 'order');
       this.answered = {};
+      this.disp = {};   // 每题的选项显示顺序（本次会话内固定，翻页不会乱跳）
       go('quiz');
       this.render();
+    },
+    // 取该题的显示顺序：返回原始选项 key 的数组
+    getDisp(q) {
+      if (!this.disp) this.disp = {};
+      if (!this.disp[q.id]) {
+        const keys = q.o.map(o => o.k);
+        this.disp[q.id] = S.shuf ? shuffle(keys) : keys;
+      }
+      return this.disp[q.id];
     },
     render() {
       const id = this.list[this.idx];
@@ -469,25 +502,30 @@ const App = (() => {
       $('qStem').innerHTML = esc(q.q);
 
       const ans = this.answered[id];
-      $('qOpts').innerHTML = q.o.map(o => {
+      const disp = this.getDisp(q);
+      $('qOpts').innerHTML = disp.map((k, i) => {
+        const o = q.o.find(x => x.k === k);
+        const L = LETTERS[i];
         let cls = 'opt';
         if (ans) {
           cls += ' locked';
-          if (o.k === q.a) cls += ' right';
-          else if (o.k === ans.pick) cls += ' wrong';
+          if (k === q.a) cls += ' right';
+          else if (k === ans.pick) cls += ' wrong';
           else cls += ' dim';
         }
-        return `<div class="${cls}" data-k="${o.k}" onclick="App.pick('${o.k}')">
-          <div class="k">${o.k}</div><div class="t">${esc(o.t)}</div></div>`;
+        return `<div class="${cls}" data-k="${k}" onclick="App.pick('${k}')">
+          <div class="k">${L}</div><div class="t">${esc(o.t)}</div></div>`;
       }).join('');
 
       const v = $('qVerdict');
       if (ans) {
         const ok = ans.pick === q.a;
+        const rightText = q.o.find(o => o.k === q.a).t;
+        const rightLetter = LETTERS[disp.indexOf(q.a)];
         v.className = 'verdict show ' + (ok ? 'ok' : 'no');
         v.innerHTML = ok
-          ? `<div class="vi">✓</div><div><b>回答正确</b><span class="note">正确答案：${q.a}. ${esc(q.o.find(o => o.k === q.a).t)}</span></div>`
-          : `<div class="vi">✕</div><div><b>回答错误</b><span class="note">正确答案：${q.a}. ${esc(q.o.find(o => o.k === q.a).t)}</span></div>`;
+          ? `<div class="vi">✓</div><div><b>回答正确</b><span class="note">正确答案：${rightLetter}. ${esc(rightText)}</span></div>`
+          : `<div class="vi">✕</div><div><b>回答错误</b><span class="note">正确答案：${rightLetter}. ${esc(rightText)}</span></div>`;
       } else {
         v.className = 'verdict';
         v.innerHTML = '';
@@ -647,7 +685,7 @@ const App = (() => {
         const w = S.wrong[id];
         return `<div class="qitem" onclick="App.openOne(${id})">
           <div class="qi-h"><span class="qi-n">${q.id}</span><div class="qi-s">${esc(q.q)}</div></div>
-          <div class="qi-f"><i>错 ${w.n} 次</i><i>答案 <span class="r">${q.a}</span></i></div></div>`;
+          <div class="qi-f"><i>错 ${w.n} 次</i><i>答案 <span class="r">${esc(q.o.find(o=>o.k===q.a).t)}</span></i></div></div>`;
       }).join('');
   }
   function startWrong() {
@@ -677,7 +715,7 @@ const App = (() => {
         const q = Q(id); if (!q) return '';
         return `<div class="qitem" onclick="App.openOne(${id})">
           <div class="qi-h"><span class="qi-n">${q.id}</span><div class="qi-s">${esc(q.q)}</div></div>
-          <div class="qi-f"><i>答案 <span class="r">${q.a}</span></i></div></div>`;
+          <div class="qi-f"><i>答案 <span class="r">${esc(q.o.find(o=>o.k===q.a).t)}</span></i></div></div>`;
       }).join('');
   }
   function startFav() {
@@ -772,7 +810,7 @@ const App = (() => {
           const q = Q(id);
           return `<div class="qitem" onclick="App.openOne(${id})">
             <div class="qi-h"><span class="qi-n">${q.id}</span><div class="qi-s">${esc(q.q)}</div></div>
-            <div class="qi-f"><i>答案 <span class="r">${q.a}</span></i></div></div>`;
+            <div class="qi-f"><i>答案 <span class="r">${esc(q.o.find(o=>o.k===q.a).t)}</span></i></div></div>`;
         }).join('')
       : `<div class="empty"><div class="em">🏆</div><b>全部答对！</b><p>太厉害了，这轮没有错题</p></div>`;
     go('result');
@@ -786,6 +824,10 @@ const App = (() => {
     h.push(`<div style="display:flex;flex-direction:column;gap:10px">`);
     h.push(`<div style="background:#f7f8fa;border-radius:12px;padding:13px 14px;font-size:13.5px;color:#5b6470;line-height:1.75">
       共 <b>${BANK.length}</b> 道题，答案均对应原文档标注，已全部核对完毕。</div>`);
+    h.push(`<div class="setrow" onclick="App.toggleShuf()">
+      <div><b>随机选项顺序</b><span>打乱 ABCD 排列，避免靠字母记答案</span></div>
+      <div class="sw ${S.shuf ? 'on' : ''}"><i></i></div>
+    </div>`);
     h.push(`<button class="btn ghost" onclick="App.resumeSeq()">继续上次顺序进度（第 ${Math.min(S.pos + 1, BANK.length)} 题）</button>`);
     h.push(`<button class="btn ghost" style="color:#d92d20;border-color:#f5c2bd" onclick="App.resetAll()">清除全部记录</button>`);
     h.push(`</div><button class="btn main" style="margin-top:14px" onclick="App.closeSheet()">关闭</button>`);
@@ -793,6 +835,14 @@ const App = (() => {
     $('mask').classList.add('on');
   }
   function resumeSeq() { closeSheet(); start('order'); }
+  function toggleShuf() {
+    S.shuf = !S.shuf;
+    save();
+    if (Quiz.disp) Quiz.disp = {};   // 清掉本次会话的缓存，立即生效
+    if (cur === 'quiz') Quiz.render();
+    openSettings();
+    toast(S.shuf ? '已开启选项乱序' : '已关闭选项乱序');
+  }
   function resetAll() {
     if (!confirm('将清除做题记录、错题本、收藏和考试记录，确定吗？')) return;
     S = DEF(); save(); closeSheet(); renderHome(); toast('已清除');
@@ -847,7 +897,7 @@ const App = (() => {
     boot, go, start, pick, nextQ, prevQ, exitQuiz, toggleFav,
     openSheet, closeSheet, jump, modeClick,
     renderHome, renderWrong, renderFav, startWrong, startFav, clearWrong, openOne,
-    openSettings, resumeSeq, resetAll, retryExam
+    openSettings, resumeSeq, resetAll, retryExam, toggleShuf
   };
 })();
 
