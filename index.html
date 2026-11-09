@@ -16,6 +16,7 @@
 --line:#e8eaed;--ok:#079455;--ok-bg:#e8f7ef;--no:#d92d20;--no-bg:#fdecea;
 --gold:#f59e0b;--gold-bg:#fff7e6;
 --safe-b:env(safe-area-inset-bottom,0px);
+--tabh:56px;   /* 底部导航条高度，用于给内容留出安全间距 */
 }
 html,body{height:100%}
 body{
@@ -25,7 +26,7 @@ font-size:16px;-webkit-font-smoothing:antialiased;
 overscroll-behavior-y:none;
 }
 #app{max-width:720px;margin:0 auto;min-height:100%;position:relative;background:var(--bg);}
-.screen{display:none;min-height:100vh;flex-direction:column}
+.screen{display:none;min-height:100vh;min-height:100dvh;flex-direction:column}
 .screen.on{display:flex}
 
 /* ---------- 顶部栏 ---------- */
@@ -59,7 +60,7 @@ font-size:17px;cursor:pointer;flex-shrink:0;transition:background .2s;
 .bar i{display:block;height:100%;background:linear-gradient(90deg,#e8445f,#c8102e);border-radius:99px;transition:width .6s cubic-bezier(.4,0,.2,1)}
 .sec-t{font-size:13px;color:var(--tx2);margin:0 4px 10px;font-weight:500}
 
-.modes{display:flex;flex-direction:column;gap:10px;padding:0 16px 24px}
+.modes{display:flex;flex-direction:column;gap:10px;padding:0 16px calc(var(--tabh) + 28px + var(--safe-b))}
 .mode{
 background:var(--card);border-radius:16px;padding:16px;display:flex;align-items:center;gap:14px;
 box-shadow:0 1px 6px rgba(0,0,0,.05);cursor:pointer;transition:transform .15s,box-shadow .15s;
@@ -141,7 +142,9 @@ font-family:inherit;
 .btn.sm{height:38px;font-size:14px;border-radius:10px}
 
 /* ---------- 列表/结果页 ---------- */
-.scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 16px calc(90px + var(--safe-b))}
+.scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 16px calc(var(--tabh) + 34px + var(--safe-b))}
+/* 成绩页无底部导航，底部是 actbar，不需要预留导航条高度 */
+#scr-result .scroll{padding-bottom:24px}
 .empty{text-align:center;padding:60px 20px;color:var(--tx3)}
 .empty .em{font-size:46px;margin-bottom:14px;opacity:.85}
 .empty b{display:block;font-size:16px;color:var(--tx2);margin-bottom:6px;font-weight:600}
